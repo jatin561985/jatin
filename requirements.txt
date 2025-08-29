@@ -1,0 +1,4 @@
+pandas
+numpy
+# In a real scenario, you would add the Kite Connect library here
+# kiteconnect
