@@ -1,0 +1,264 @@
+{
+  "bot_configuration": {
+    "name": "NIFTY_SENSEX_Options_AutoTrader",
+    "version": "1.0",
+    "broker": "zerodha_kite",
+    "instruments": ["NIFTY", "SENSEX"],
+    "trading_mode": "automatic",
+    "execution_type": "options"
+  },
+
+  "risk_management": {
+    "max_risk_per_trade": 0.5,
+    "max_portfolio_risk": 1.0,
+    "profit_target_percent": 1.0,
+    "stop_loss_percent": 0.5,
+    "margin_buffer": 30,
+    "max_positions": 5,
+    "position_sizing": {
+      "method": "fixed_risk",
+      "risk_per_trade_percent": 0.5
+    }
+  },
+
+  "market_analysis": {
+    "technical_indicators": {
+      "moving_averages": ["20_EMA", "50_EMA", "200_EMA"],
+      "momentum": ["RSI", "MACD"],
+      "volatility": ["BOLLINGER_BANDS", "ATR"],
+      "support_resistance": {
+        "lookback_periods": [5, 10, 20],
+        "pivot_points": true
+      }
+    },
+    "fundamental_checks": {
+      "economic_calendar": true,
+      "rbi_policy": true,
+      "global_markets": ["SGX_NIFTY", "US_FUTURES"],
+      "fii_dii_data": true,
+      "vix_threshold": {
+        "low": 12,
+        "medium": 20,
+        "high": 30
+      }
+    },
+    "option_chain_analysis": {
+      "max_pain": true,
+      "open_interest": true,
+      "put_call_ratio": {
+        "oversold": 0.5,
+        "neutral": [0.7, 1.3],
+        "overbought": 1.5
+      },
+      "iv_percentile_threshold": 30
+    }
+  },
+
+  "strategy_selection": {
+    "market_conditions": {
+      "bullish": {
+        "strong": ["buy_call", "bull_call_spread", "long_synthetic_future"],
+        "moderate": ["bull_put_spread", "sell_put", "bull_condor"],
+        "mild": ["bull_butterfly", "jade_lizard"]
+      },
+      "bearish": {
+        "strong": ["buy_put", "bear_put_spread", "short_synthetic_future"],
+        "moderate": ["bear_call_spread", "sell_call", "bear_condor"],
+        "mild": ["bear_butterfly", "reverse_jade_lizard"]
+      },
+      "neutral": {
+        "high_volatility": ["short_straddle", "short_strangle", "iron_butterfly"],
+        "low_volatility": ["iron_condor", "calendar_spread"],
+        "range_bound": ["short_iron_condor", "batman", "double_plateau"]
+      },
+      "volatile": {
+        "directional_bias_up": ["strip", "long_straddle"],
+        "directional_bias_down": ["strap", "long_strangle"],
+        "no_bias": ["long_iron_butterfly", "long_iron_condor"]
+      }
+    },
+    "selection_criteria": {
+      "trend_strength_threshold": 60,
+      "volatility_regime": "dynamic",
+      "time_to_expiry_preference": "weekly",
+      "liquidity_minimum": 1000,
+      "spread_max_percent": 1.0
+    }
+  },
+
+  "entry_rules": {
+    "timing": {
+      "market_hours_only": true,
+      "avoid_first_minutes": 15,
+      "avoid_last_minutes": 30,
+      "preferred_entry_window": ["09:30", "14:30"]
+    },
+    "confirmation_required": {
+      "technical_signals": 2,
+      "volume_confirmation": true,
+      "option_chain_alignment": true
+    },
+    "order_types": {
+      "entry": "LIMIT",
+      "stop_loss": "SL-M",
+      "target": "LIMIT"
+    },
+    "strike_selection": {
+      "delta_range": {
+        "atm": [0.45, 0.55],
+        "itm": [0.60, 0.80],
+        "otm": [0.20, 0.40]
+      },
+      "premium_collection_minimum": 50,
+      "days_to_expiry": {
+        "weekly": [1, 7],
+        "monthly": [8, 30]
+      }
+    }
+  },
+
+  "exit_rules": {
+    "profit_targets": {
+      "partial_exit_1": 50,
+      "partial_exit_2": 75,
+      "final_exit": 100
+    },
+    "stop_loss": {
+      "initial": 50,
+      "trailing": {
+        "activate_after_percent": 30,
+          "trail_by_percent": 20
+      }
+    },
+    "time_based": {
+      "theta_decay_exit": 80,
+      "expiry_day_exit_time": "15:00",
+      "avoid_expiry_day": false
+    },
+    "event_based": {
+      "exit_before_major_events": true,
+      "vix_spike_threshold": 25
+    }
+  },
+
+  "monitoring": {
+    "real_time_tracking": {
+      "greeks": ["delta", "gamma", "theta", "vega"],
+      "portfolio_greeks_limits": {
+        "max_delta": 100,
+        "max_gamma": 50,
+        "max_vega": 1000
+      }
+    },
+    "alerts": {
+      "price_alerts": true,
+      "volume_spike": true,
+      "unusual_option_activity": true,
+      "margin_utilization": 80
+    },
+    "adjustment_triggers": {
+      "delta_neutral_threshold": 10,
+      "loss_threshold_percent": 30,
+      "profit_threshold_percent": 50,
+      "iv_change_percent": 20
+    }
+  },
+
+  "execution_parameters": {
+    "lot_sizes": {
+      "NIFTY": 75,
+      "SENSEX": 20
+    },
+    "expiry_schedule": {
+      "NIFTY": {
+        "weekly": "TUESDAY",
+        "monthly": "LAST_TUESDAY"
+      },
+      "SENSEX": {
+        "weekly": "THURSDAY",
+        "monthly": "LAST_THURSDAY"
+      }
+    },
+    "slippage_tolerance": 0.5,
+    "max_retry_attempts": 3,
+    "order_placement_delay_ms": 500
+  },
+
+  "decision_engine": {
+    "market_regime_detection": {
+      "lookback_period": 20,
+      "regime_change_threshold": 2,
+      "confirmation_candles": 3
+    },
+    "strategy_scoring": {
+      "weights": {
+        "technical_score": 0.35,
+        "fundamental_score": 0.20,
+        "option_chain_score": 0.25,
+        "risk_reward_score": 0.20
+      },
+      "minimum_score": 70
+    },
+    "trade_frequency": {
+      "max_trades_per_day": 3,
+      "min_time_between_trades_minutes": 30,
+      "correlation_check": true
+    }
+  },
+
+  "backtesting": {
+    "enabled": true,
+    "historical_period_days": 90,
+    "paper_trade_first": true,
+    "performance_metrics": [
+      "sharpe_ratio",
+      "max_drawdown",
+      "win_rate",
+      "profit_factor"
+    ]
+  },
+
+  "logging": {
+    "trade_journal": {
+      "enabled": true,
+      "fields": [
+        "timestamp",
+        "strategy",
+        "entry_price",
+        "exit_price",
+        "pnl",
+        "market_conditions",
+        "decision_factors"
+      ]
+    },
+    "performance_tracking": {
+      "daily_pnl": true,
+      "strategy_performance": true,
+      "error_logging": true
+    }
+  },
+
+  "safety_features": {
+    "kill_switch": {
+      "daily_loss_limit": 2,
+      "consecutive_losses": 3,
+      "system_error_threshold": 5
+    },
+    "manual_override": true,
+    "test_mode": false,
+    "max_order_value": 100000,
+    "restricted_hours": ["09:00-09:15", "15:15-15:30"]
+  },
+
+  "api_configuration": {
+    "rate_limiting": {
+      "orders_per_second": 10,
+      "data_requests_per_second": 5
+    },
+    "reconnection": {
+      "auto_reconnect": true,
+      "max_reconnect_attempts": 5,
+      "reconnect_interval_seconds": 30
+    }
+  }
+}
