@@ -7,12 +7,20 @@ from . import analysis
 
 class Portfolio:
     """Manages the simulated trading account."""
-    def __init__(self, initial_capital: float = 100000.0):
+    def __init__(self, initial_capital: float, risk_config: Dict[str, Any]):
         self.initial_capital = initial_capital
         self.cash = initial_capital
         self.positions = []
         self.daily_pnl = 0.0
         self.day_over = False
+        self.risk_config = risk_config
+
+        # Setup risk limits from configuration
+        profit_target_pct = self.risk_config.get('profit_target_percent', 1.0)
+        stop_loss_pct = self.risk_config.get('stop_loss_percent', 0.5)
+        self.profit_target = self.initial_capital * (profit_target_pct / 100.0)
+        self.stop_loss = -self.initial_capital * (stop_loss_pct / 100.0)
+
 
     def get_total_value(self):
         # In a real scenario, this would mark-to-market all open positions.
@@ -36,15 +44,13 @@ class Portfolio:
 
     def check_risk_limits(self):
         """Checks if the daily profit target or stop loss has been hit."""
-        profit_target = self.initial_capital * 0.01  # 1%
-        stop_loss = -self.initial_capital * 0.005 # 0.5%
-
-        if self.daily_pnl >= profit_target:
-            print(f"!!! PROFIT TARGET HIT: {self.daily_pnl:.2f} >= {profit_target:.2f} !!!")
+        # Use pre-calculated limits from __init__
+        if self.daily_pnl >= self.profit_target:
+            print(f"!!! PROFIT TARGET HIT: {self.daily_pnl:.2f} >= {self.profit_target:.2f} !!!")
             self.close_all_positions("Profit Target")
             self.day_over = True
-        elif self.daily_pnl <= stop_loss:
-            print(f"!!! STOP LOSS HIT: {self.daily_pnl:.2f} <= {stop_loss:.2f} !!!")
+        elif self.daily_pnl <= self.stop_loss:
+            print(f"!!! STOP LOSS HIT: {self.daily_pnl:.2f} <= {self.stop_loss:.2f} !!!")
             self.close_all_positions("Stop Loss")
             self.day_over = True
 
@@ -84,16 +90,31 @@ class Trader:
             print("Trading for the day is over. No new trades will be executed.")
             return
 
-        # Simplified cost simulation
-        simulated_cost = self.portfolio.initial_capital * 0.02 # Assume 2% capital per trade
+        # Use position sizing from the portfolio's risk configuration
+        position_sizing_config = self.portfolio.risk_config.get('position_sizing', {})
+        risk_per_trade_pct = position_sizing_config.get('risk_per_trade_percent', 2.0) # Default to 2% if not found
+        simulated_cost = self.portfolio.initial_capital * (risk_per_trade_pct / 100.0)
 
+        print(f"Trader: Executing trade with {risk_per_trade_pct}% of capital: {simulated_cost:.2f}")
         self.portfolio.record_trade(strategy.name, simulated_cost, strategy.premium)
 
 if __name__ == '__main__':
     # --- Simulation Run ---
-    print("--- Starting Trading Day Simulation ---")
-    my_portfolio = Portfolio(initial_capital=100000.0)
+    print("--- Starting Trading Day Simulation (from trader.py) ---")
+
+    # Mock risk config for testing
+    mock_risk_config = {
+        "profit_target_percent": 1.5,
+        "stop_loss_percent": 0.7,
+        "position_sizing": {
+            "risk_per_trade_percent": 2.5
+        }
+    }
+
+    my_portfolio = Portfolio(initial_capital=100000.0, risk_config=mock_risk_config)
     trader = Trader(portfolio=my_portfolio)
+
+    print(f"Initialized with Profit Target: {my_portfolio.profit_target:.2f}, Stop Loss: {my_portfolio.stop_loss:.2f}")
 
     # 1. Get market analysis
     report = analysis.run_full_analysis()
@@ -111,11 +132,11 @@ if __name__ == '__main__':
     if my_portfolio.positions:
         # Simulate a winning trade that hits the profit target
         print("\n* Scenario 1: Winning Trade *")
-        my_portfolio.update_daily_pnl(1100) # 1.1% profit
+        my_portfolio.update_daily_pnl(1600) # 1.6% profit > 1.5% target
 
     # Reset for next scenario
     print("\n--- Resetting for another simulation ---")
-    my_portfolio = Portfolio(initial_capital=100000.0)
+    my_portfolio = Portfolio(initial_capital=100000.0, risk_config=mock_risk_config)
     trader = Trader(portfolio=my_portfolio)
     if strat_to_execute:
         trader.execute_trade(strat_to_execute)
@@ -123,4 +144,4 @@ if __name__ == '__main__':
     print("\n* Scenario 2: Losing Trade *")
     if my_portfolio.positions:
         # Simulate a losing trade that hits the stop loss
-        my_portfolio.update_daily_pnl(-600) # 0.6% loss
+        my_portfolio.update_daily_pnl(-800) # 0.8% loss > 0.7% stop loss
