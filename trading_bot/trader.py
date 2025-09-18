@@ -1,4 +1,5 @@
 import random
+from datetime import datetime
 from typing import List, Dict, Any
 
 from . import strategies
@@ -13,20 +14,35 @@ class Portfolio:
         self.positions = []
         self.daily_pnl = 0.0
         self.day_over = False
+        self.trade_log: List[Dict[str, Any]] = []
 
     def get_total_value(self):
         # In a real scenario, this would mark-to-market all open positions.
         # For our simulation, we'll just track PnL directly.
         return self.initial_capital + self.daily_pnl
 
-    def record_trade(self, strategy_name: str, cost: float, trade_type: str):
-        """Records a new trade and adjusts cash."""
-        self.positions.append({"strategy": strategy_name, "cost": cost, "pnl": 0})
+    def record_trade(self, strategy_name: str, notional: float, trade_type: str):
+        """Records a new trade, adjusts cash, and logs the event."""
+
+        trade_entry = {
+            "timestamp": datetime.now(),
+            "strategy": strategy_name,
+            "notional": notional,
+            "trade_type": trade_type,
+            "pnl": 0.0,
+        }
+        self.positions.append(trade_entry.copy())
+        self.trade_log.append({**trade_entry, "event": "Entry"})
+
         if trade_type == "Pay":
-            self.cash -= cost
+            self.cash -= notional
         elif trade_type == "Receive":
-            self.cash += cost
-        print(f"Portfolio: Executed {strategy_name}. Cash available: {self.cash:.2f}")
+            self.cash += notional
+
+        print(
+            f"Portfolio: Executed {strategy_name} ({trade_type}). "
+            f"Capital allocated: {notional:.2f}. Cash available: {self.cash:.2f}"
+        )
 
     def update_daily_pnl(self, pnl_change: float):
         """Updates the daily PnL."""
@@ -54,8 +70,30 @@ class Portfolio:
         # In a real scenario, you'd place closing orders for each position.
         # Here, we just clear them and realize the PnL.
         self.cash += self.daily_pnl # Realize PnL into cash
+        self.trade_log.append(
+            {
+                "timestamp": datetime.now(),
+                "strategy": "ALL",
+                "notional": 0.0,
+                "trade_type": "Exit",
+                "pnl": self.daily_pnl,
+                "event": f"Closed due to {reason}",
+            }
+        )
         self.positions = []
         print(f"All positions closed. Final cash: {self.cash:.2f}")
+
+    def get_risk_snapshot(self) -> Dict[str, Any]:
+        """Returns key risk numbers for reporting."""
+
+        return {
+            "initial_capital": self.initial_capital,
+            "cash_on_hand": self.cash,
+            "daily_pnl": self.daily_pnl,
+            "profit_target": self.initial_capital * 0.01,
+            "stop_loss": -self.initial_capital * 0.005,
+            "day_over": self.day_over,
+        }
 
 class Trader:
     """The main trading agent."""
@@ -75,7 +113,16 @@ class Trader:
         # Simple logic: pick a random strategy from the suitable list.
         # A more advanced bot could rank them based on IV, risk, etc.
         chosen_strategy = random.choice(potential_strategies)
-        print(f"Decision: Market view is '{market_view}'. Chosen strategy: '{chosen_strategy.name}'")
+        print(
+            f"Decision: Market view is '{market_view}'. "
+            f"Chosen strategy: '{chosen_strategy.name}'"
+        )
+        if chosen_strategy.setup:
+            print(f"  Setup: {chosen_strategy.setup}")
+        if chosen_strategy.breakeven:
+            print(f"  Breakeven: {chosen_strategy.breakeven}")
+        print(f"  Max Profit: {chosen_strategy.max_profit}")
+        print(f"  Max Loss: {chosen_strategy.max_loss}")
         return chosen_strategy
 
     def execute_trade(self, strategy: strategies.Strategy):
@@ -85,7 +132,7 @@ class Trader:
             return
 
         # Simplified cost simulation
-        simulated_cost = self.portfolio.initial_capital * 0.02 # Assume 2% capital per trade
+        simulated_cost = self.portfolio.initial_capital * 0.005 # Risk 0.5% capital per trade
 
         self.portfolio.record_trade(strategy.name, simulated_cost, strategy.premium)
 

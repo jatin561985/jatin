@@ -1,7 +1,12 @@
 import time
-from trading_bot import analysis, decision_engine, trader, strategies
+from typing import Optional
 
-def run_trading_session():
+from trading_bot import analysis, decision_engine, trader, reporting
+
+def run_trading_session(
+    excel_path: str = "trading_bot_report.xlsx",
+    google_sheet_id: Optional[str] = None,
+):
     """
     Simulates a single trading session from analysis to execution.
     """
@@ -59,6 +64,21 @@ def run_trading_session():
         # e.g., 2500 for profit target, -1100 for stop loss
         pnl_update = 2500
         portfolio.update_daily_pnl(pnl_update)
+
+    # --- Reporting ---
+    reporter = reporting.SpreadsheetReporter(output_path=excel_path, google_sheet_id=google_sheet_id)
+    tables = reporter.build_tables(
+        market_report,
+        market_view,
+        portfolio,
+        chosen_strategy=chosen_strategy.name if chosen_strategy else None,
+    )
+
+    excel_file = reporter.export_to_excel(tables)
+    print(f"\nSpreadsheet report created at: {excel_file.resolve()}")
+
+    if google_sheet_id:
+        reporter.export_to_google_sheet(tables)
 
 
 if __name__ == "__main__":

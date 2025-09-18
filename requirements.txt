@@ -1,4 +1,8 @@
 pandas
 numpy
+xlsxwriter
+# Optional: gspread and google-auth for Google Sheets export
+# gspread
+# google-auth
 # In a real scenario, you would add the Kite Connect library here
 # kiteconnect
