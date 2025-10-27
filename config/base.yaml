@@ -1,0 +1,60 @@
+name: base
+broker: paper
+capital: 50000000
+risk_budget_pct: 0.0025
+profit_target_pct: 0.01
+lot_sizes:
+  NIFTY: 75
+  SENSEX: 20
+entry:
+  start_time: '09:20'
+  end_time: '09:25'
+  order_type: market
+filters:
+  iv_percentile:
+    enabled: true
+    min: 0.05
+    max: 0.95
+  india_vix:
+    enabled: true
+    lookback: 20
+    max_above_ma: 0.1
+  opening_range:
+    enabled: true
+    duration_min: 15
+    tolerance_pct: 0.3
+  atr:
+    enabled: true
+    lookback: 14
+    max_atr_pct: 0.03
+  events:
+    enabled: true
+    calendar_csv: config/events.csv
+reentry:
+  enabled: true
+  max_retries: 2
+  cooldown_min: 30
+  reentry_trigger_pct: 0.5
+risk:
+  combined_sl_pct: 0.0025
+  leg_sl_pct: 0.3
+  trailing:
+    enabled: true
+    trail_pct: 0.25
+  emergency_iv_spike:
+    enabled: true
+    threshold_pct: 0.25
+exit:
+  hard_stop_time: '15:10'
+  soft_exit_time: '14:45'
+  trail_from_profit_pct: 0.005
+positioning:
+  margin_cap_lots: 100
+  liquidity_cap_lots: 60
+  sl_pct: 0.3
+reporting:
+  output_dir: reports
+  enable_plots: true
+schedule:
+  timezone: Asia/Kolkata
+  backfill_days: 365

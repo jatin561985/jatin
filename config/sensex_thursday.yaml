@@ -1,0 +1,16 @@
+extends: base
+name: sensex_thursday
+underlying: SENSEX
+expiry_weekday: Thursday
+entry:
+  start_time: '09:22'
+  end_time: '09:25'
+filters:
+  iv_percentile:
+    min: 0.1
+  india_vix:
+    max_above_ma: 0.08
+risk:
+  combined_sl_pct: 0.0022
+positioning:
+  liquidity_cap_lots: 40

@@ -1,0 +1,16 @@
+extends: base
+name: nifty_tuesday
+underlying: NIFTY
+expiry_weekday: Tuesday
+entry:
+  start_time: '09:20'
+  end_time: '09:23'
+filters:
+  atr:
+    max_atr_pct: 0.025
+risk:
+  combined_sl_pct: 0.002
+reentry:
+  max_retries: 1
+positioning:
+  margin_cap_lots: 80
