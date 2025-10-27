@@ -1,11 +1,8 @@
-from __future__ import annotations
-
-import numpy as np
-
-
-def annualized_return(returns: np.ndarray, periods_per_year: int = 252) -> float:
-    if returns.size == 0:
-        return 0.0
-    compounded = np.prod(1 + returns)
-    years = returns.size / periods_per_year
-    return compounded ** (1 / years) - 1 if years > 0 else 0.0
+def calculate_pnl(entry_price: float, exit_price: float, quantity: int, side: str) -> float:
+    """
+    Calculates the Profit and Loss (PnL) for a trade.
+    """
+    if side == "BUY":
+        return (exit_price - entry_price) * quantity
+    else: # SELL
+        return (entry_price - exit_price) * quantity

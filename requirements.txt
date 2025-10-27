@@ -15,4 +15,3 @@ schedule
 statsmodels
 kiteconnect
 streamlit
-pyarrow
