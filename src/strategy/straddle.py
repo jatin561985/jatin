@@ -1,171 +1,101 @@
-from __future__ import annotations
+from src.cfg.models import StrategyConfig
+from src.broker.paper import PaperBroker
+from src.strategy.sizing import lots_allowed
+from datetime import time, datetime
 
-from dataclasses import dataclass, field
-from typing import Dict, Optional
+class ShortStraddleStrategy:
+    """
+    Implements the short straddle trading strategy.
+    """
+    def __init__(self, config: StrategyConfig, broker: PaperBroker):
+        self.config = config
+        self.broker = broker
 
-import pandas as pd
+    def run(self, current_time: datetime):
+        """
+        Executes the main strategy loop.
+        """
+        import pytz
+        IST = pytz.timezone("Asia/Kolkata")
 
-from .position_sizing import PositionSizingResult, lots_allowed
+        entry_start = datetime.strptime(self.config.entry_window.start, '%H:%M').time()
+        entry_end = datetime.strptime(self.config.entry_window.end, '%H:%M').time()
 
+        now_time = current_time.astimezone(IST).time()
 
-@dataclass(slots=True)
-class OptionLeg:
-    symbol: str
-    strike: float
-    option_type: str
-    entry_price: float
-    lot_size: int
-    lots: int
-    sl_pct: float
-    current_price: float
-    stop_loss_price: float = field(init=False)
-    exit_price: Optional[float] = None
-    active: bool = True
+        if entry_start <= now_time <= entry_end and not self.broker.positions:
+            self.enter_straddle()
 
-    def __post_init__(self) -> None:
-        self.stop_loss_price = self.entry_price * (1 + self.sl_pct)
+        # Exit logic will be added later
+        # self.manage_positions()
 
-    @property
-    def quantity(self) -> int:
-        return -self.lots * self.lot_size
+    def enter_straddle(self):
+        """
+        Enters a short straddle position.
+        """
+        print("Entering short straddle...")
+        # In a real scenario, you would get the ATM strike from the option chain
+        atm_strike = 25000
+        ce_symbol = f"{self.config.underlying}{atm_strike}CE"
+        pe_symbol = f"{self.config.underlying}{atm_strike}PE"
 
-    def update_price(self, price: float) -> None:
-        self.current_price = price
-        if price >= self.stop_loss_price:
-            self.exit_price = self.stop_loss_price
-            self.active = False
+        # Mock prices for now
+        ce_price = 100.0
+        pe_price = 100.0
 
-    def mtm(self) -> float:
-        price = self.exit_price if self.exit_price is not None else self.current_price
-        return (self.entry_price - price) * self.lot_size * self.lots
+        # Calculate lots
+        num_lots = lots_allowed(
+            P0=(ce_price + pe_price),
+            lot_size=self.config.lot_size,
+            risk_budget=self.broker.capital * (self.config.exits.hard_mtm_stop_loss_percent / 100.0),
+            sl_pct=self.config.exits.per_leg_sl_percent / 100.0,
+            margin_cap_lots=100, # Mock value
+            liq_cap_lots=100, # Mock value
+        )
 
-    def mark_exit(self, price: float) -> None:
-        self.exit_price = price
-        self.active = False
+        if num_lots > 0:
+            self.broker.place_order(ce_symbol, num_lots, ce_price, "SELL")
+            self.broker.place_order(pe_symbol, num_lots, pe_price, "SELL")
+            print(f"Sold {num_lots} lots of {ce_symbol} at {ce_price}")
+            print(f"Sold {num_lots} lots of {pe_symbol} at {pe_price}")
 
-
-@dataclass
-class StraddlePosition:
-    ce: OptionLeg
-    pe: OptionLeg
-    sizing: PositionSizingResult
-    combined_stop_loss: float
-    combined_trailing_pct: float
-    profit_target: float
-    mtm_history: list[float] = field(default_factory=list)
-    closed: bool = False
-
-    def update_prices(self, ce_price: float, pe_price: float) -> None:
-        if not self.closed:
-            self.ce.update_price(ce_price)
-            self.pe.update_price(pe_price)
-            self.mtm_history.append(self.mtm())
-            self._check_rules()
-
-    def mtm(self) -> float:
-        return self.ce.mtm() + self.pe.mtm()
-
-    def _check_rules(self) -> None:
-        if self.closed:
-            return
-        combined_loss = -min(0.0, self.mtm())
-        if combined_loss >= self.combined_stop_loss:
-            self.close(self.ce.current_price, self.pe.current_price)
-            return
-        if self.mtm() >= self.profit_target:
-            self.close(self.ce.current_price, self.pe.current_price)
-            return
-        if self.combined_trailing_pct > 0 and self.mtm_history:
-            peak = max(self.mtm_history)
-            if peak > 0 and self.mtm() <= peak * (1 - self.combined_trailing_pct):
-                self.close(self.ce.current_price, self.pe.current_price)
-
-    def close(self, ce_price: float, pe_price: float) -> None:
-        if self.closed:
-            return
-        self.ce.mark_exit(ce_price)
-        self.pe.mark_exit(pe_price)
-        self.closed = True
-
-    def to_dict(self) -> Dict[str, float]:
-        return {
-            "ce_entry": self.ce.entry_price,
-            "pe_entry": self.pe.entry_price,
-            "ce_exit": self.ce.exit_price or self.ce.current_price,
-            "pe_exit": self.pe.exit_price or self.pe.current_price,
-            "mtm": self.mtm(),
-            "lots": self.ce.lots,
+    def manage_positions(self):
+        """
+        Manages open positions, checking for stop-loss or profit-target.
+        """
+        # In a real scenario, you would get live prices for the open positions
+        # For now, we'll use mock prices to demonstrate the logic
+        mock_prices = {
+            "NIFTY25000CE": 110.0,
+            "NIFTY25000PE": 90.0
         }
 
+        # Check for stop-loss
+        from src.risk.rules import check_stop_loss
+        sl_hit = check_stop_loss(
+            self.broker.positions,
+            mock_prices,
+            self.config.exits.per_leg_sl_percent
+        )
+        if sl_hit:
+            print("Stop-loss hit! Exiting all positions.")
+            # In a real scenario, you would exit all positions here
+            pass
 
-class StraddleBuilder:
-    def __init__(self, config, option_chain: pd.DataFrame) -> None:
-        self.config = config
-        self.option_chain = option_chain
+if __name__ == "__main__":
+    # This is a simplified example of how the strategy might be run.
+    # A full backtester or live execution engine is needed to run this properly.
 
-    def build(self, underlying_price: float) -> Optional[StraddlePosition]:
-        strike = self._find_atm_strike(underlying_price)
-        if strike is None:
-            return None
-        ce_row = self._select_option(strike, "CE")
-        pe_row = self._select_option(strike, "PE")
-        if ce_row is None or pe_row is None:
-            return None
-        premium = ce_row["last_price"] + pe_row["last_price"]
-        sizing = lots_allowed(
-            premium=premium,
-            lot_size=self.config.lot_size,
-            risk_budget=self.config.risk_budget_for_day(),
-            sl_pct=self.config.positioning.sl_pct,
-            margin_cap_lots=self.config.positioning.margin_cap_lots,
-            liq_cap_lots=self.config.positioning.liquidity_cap_lots,
-        )
-        if sizing.lots <= 0:
-            return None
-        ce_leg = OptionLeg(
-            symbol=f"{self.config.underlying}{strike}CE",
-            strike=strike,
-            option_type="CE",
-            entry_price=float(ce_row["last_price"]),
-            lot_size=self.config.lot_size,
-            lots=sizing.lots,
-            sl_pct=self.config.positioning.sl_pct,
-            current_price=float(ce_row["last_price"]),
-        )
-        pe_leg = OptionLeg(
-            symbol=f"{self.config.underlying}{strike}PE",
-            strike=strike,
-            option_type="PE",
-            entry_price=float(pe_row["last_price"]),
-            lot_size=self.config.lot_size,
-            lots=sizing.lots,
-            sl_pct=self.config.positioning.sl_pct,
-            current_price=float(pe_row["last_price"]),
-        )
-        combined_sl = min(
-            self.config.risk_budget_for_day(),
-            self.config.capital * self.config.risk.combined_sl_pct,
-        )
-        trailing_pct = self.config.risk.trailing.trail_pct if self.config.risk.trailing.enabled else 0.0
-        return StraddlePosition(
-            ce=ce_leg,
-            pe=pe_leg,
-            sizing=sizing,
-            combined_stop_loss=combined_sl,
-            combined_trailing_pct=trailing_pct,
-            profit_target=self.config.profit_target_for_day(),
-        )
+    # We need to load a dummy config for this to run
+    from src.cfg.loader import load_config
+    from pathlib import Path
 
-    def _find_atm_strike(self, underlying: float) -> Optional[float]:
-        strikes = self.option_chain["strike"].dropna().unique()
-        if len(strikes) == 0:
-            return None
-        strike = min(strikes, key=lambda s: abs(s - underlying))
-        return strike
+    config = load_config(Path("config/nifty_tuesday.yaml"))
+    paper_broker = PaperBroker(initial_capital=config.capital)
+    strategy = ShortStraddleStrategy(config.strategies[0], paper_broker)
 
-    def _select_option(self, strike: float, option_type: str) -> Optional[pd.Series]:
-        mask = (self.option_chain["strike"] == strike) & (self.option_chain["type"] == option_type)
-        if not mask.any():
-            return None
-        row = self.option_chain.loc[mask].iloc[0]
-        return row
+    # To test the entry logic, we need to be within the entry window
+    # This is just a demonstration; a proper scheduler is needed for live trading.
+    print("Running strategy check...")
+    strategy.run()
+

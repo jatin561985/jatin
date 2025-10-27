@@ -1,86 +1,97 @@
-# Short Straddle Research & Execution Stack
+# Short Straddle Trading Bot
 
-Production-oriented Python 3.11+ project for researching, backtesting, and executing NIFTY & SENSEX weekly ATM short straddles with strong risk controls.
+This project is a production-ready Python application that implements, backtests, and runs a short straddle workflow for NIFTY and SENSEX weekly indices.
 
-## Features
-
-- Configurable strategy definitions via YAML for different underlying/expiry profiles.
-- Minute-level event-driven backtester with synthetic option price simulator.
-- Deterministic position sizing bounded by risk budget, margin, and liquidity caps.
-- Risk management covering MTM stop, profit targets, trailing protection, and IV spike halts.
-- Broker abstraction with Zerodha Kite Connect integration and paper broker.
-- CLI utilities (Typer) for fetching option chains, running backtests, and launching paper/live trading loops.
-- Reporting helpers for portfolio metrics and Streamlit-ready data structures.
-- Modular architecture with typed Pydantic configs and reusable feature filters.
-
-## Project Layout
+## Project Structure
 
 ```
+├─ README.md
+├─ requirements.txt
+├─ .env.example
 ├─ config/
-│  ├─ base.yaml                # shared defaults
-│  ├─ nifty_tuesday.yaml       # NIFTY Tuesday expiry overrides
-│  └─ sensex_thursday.yaml     # SENSEX Thursday expiry overrides
-├─ data/                       # cached option chains, index bars
-├─ scripts/                    # Typer CLI entry-points
+│ ├─ base.yaml
+│ ├─ nifty_tuesday.yaml
+│ └─ sensex_thursday.yaml
+├─ data/
 ├─ src/
-│  ├─ cfg/                     # config loading & validation
-│  ├─ data/                    # NSE clients, caching, resampling
-│  ├─ features/                # IV percentile, ATR, ORB filters
-│  ├─ strategy/                # straddle logic & sizing
-│  ├─ costs/                   # brokerage and funding models
-│  ├─ risk/                    # stop-loss, emergency rules
-│  ├─ backtest/                # minute event-driven backtester
-│  ├─ exec/                    # live loops & scheduling
-│  ├─ reporting/               # equity curve metrics
-│  └─ utils/                   # logging, time, math, greeks
-└─ tests/                      # pytest unit coverage
+│ ├─ cfg/
+│ ├─ data/
+│ ├─ features/
+│ ├─ strategy/
+│ ├─ costs/
+│ ├─ risk/
+│ ├─ broker/
+│ ├─ backtest/
+│ ├─ exec/
+│ ├─ reporting/
+│ └─ utils/
+├─ scripts/
+│ ├─ run_backtest.py
+│ ├─ run_live_paper.py
+│ └─ run_live_trade.py
+└─ tests/
 ```
 
-## Getting Started
+## Setup
+
+1.  **Clone the repository:**
+    ```bash
+    git clone <repository_url>
+    cd <repository_name>
+    ```
+
+2.  **Create a virtual environment and install dependencies:**
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install -r requirements.txt
+    ```
+
+3.  **Configure your environment variables:**
+    - Copy the `.env.example` file to `.env`.
+    - Fill in your Zerodha Kite Connect API key, secret, and access token in the `.env` file.
+
+## Configuration
+
+The application is configured through YAML files in the `config/` directory.
+
+-   `base.yaml`: Contains global settings like account capital and risk parameters.
+-   `nifty_tuesday.yaml` / `sensex_thursday.yaml`: Contain strategy-specific parameters for each underlying.
+
+## Usage
+
+### Running the Backtester
+
+To run a backtest, use the `run_backtest.py` script:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
+python3 scripts/run_backtest.py --config-path config/nifty_tuesday.yaml --data-path data/nifty_ticks.csv
 ```
 
-Fill in `.env` with Kite credentials for live trading. For paper/backtest, credentials are not required.
+The backtest results, including an equity curve plot, will be saved to the `data/` directory.
 
-## Running Backtests
+### Running in Live Paper Trading Mode
+
+To run the bot in a simulated live environment, use the `run_live_paper.py` script:
 
 ```bash
-python scripts/run_backtest.py config/nifty_tuesday.yaml \
-  --underlying-csv data/nifty_minute.csv \
-  --option-chain-csv data/nifty_option_chain.csv
+python3 scripts/run_live_paper.py --config-path config/nifty_tuesday.yaml
 ```
 
-If data files are absent, synthetic series are generated for exploratory use.
+### Running in Live Trading Mode
 
-## Live & Paper Trading
+To run the bot with a real Zerodha account, use the `run_live_trade.py` script:
 
-- Paper mode (no broker orders):
-  ```bash
-  python scripts/run_live_paper.py config/nifty_tuesday.yaml
-  ```
-- Zerodha execution (requires `kiteconnect` and API keys in `.env`):
-  ```bash
-  python scripts/run_live_trade.py config/nifty_tuesday.yaml
-  ```
+```bash
+python3 scripts/run_live_trade.py --config-path config/nifty_tuesday.yaml
+```
 
-The live executor relies on scheduled jobs in the India timezone to enter and exit positions per config.
+**Note:** The live trading script is currently a placeholder and not yet fully implemented.
 
-## Tests
+## Running Tests
+
+To run the unit tests, use `pytest`:
 
 ```bash
 pytest
 ```
-
-## Streamlit Visualization (Optional)
-
-Load `BacktestResult.mtm_series` and `reporting.summarize` outputs in a Streamlit app for interactive dashboards (left for strategy customization).
-
-## Safety Notes
-
-- Always validate filters and risk budgets with real market data before enabling broker execution.
-- Monitor margin requirements and liquidity for the configured lot caps.

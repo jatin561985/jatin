@@ -1,32 +1,36 @@
-from __future__ import annotations
-
-from pathlib import Path
-
 import typer
+from pathlib import Path
+import time
+import schedule
+import sys
 
-from src.cfg import load_config
-from src.data import DataCache, NSEClient
-from src.exec import LiveExecutor
-from src.utils import configure_logging
+# Add the project root to the Python path
+sys.path.append(str(Path(__file__).parent.parent))
 
-app = typer.Typer(help="Run live paper trading loop")
+from src.cfg.loader import load_config
+from src.broker.paper import PaperBroker
+from src.strategy.straddle import ShortStraddleStrategy
+from src.utils.time import get_ist_now
 
-
-class DataClient:
-    def __init__(self) -> None:
-        self.client = NSEClient(DataCache())
-
-    def option_chain(self, symbol: str):
-        return self.client.option_chain(symbol)
-
+app = typer.Typer()
 
 @app.command()
-def run(config_path: Path) -> None:
-    configure_logging()
-    bundle = load_config(config_path)
-    executor = LiveExecutor(bundle.config, DataClient())
-    executor.start()
+def run(config_path: Path = typer.Option("config/nifty_tuesday.yaml", help="Path to the strategy config file.")):
+    """
+    Runs the trading bot in live paper trading mode.
+    """
+    typer.echo("Starting live paper trading...")
 
+    config = load_config(config_path)
+    broker = PaperBroker(initial_capital=config.capital)
+    strategy = ShortStraddleStrategy(config.strategies[0], broker)
+
+    # Schedule the strategy to run every minute
+    schedule.every(1).minutes.do(strategy.run)
+
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
 
 if __name__ == "__main__":
     app()

@@ -1,57 +1,50 @@
-from __future__ import annotations
-
-from pathlib import Path
-
-import numpy as np
-import pandas as pd
 import typer
-from loguru import logger
+from pathlib import Path
+import pandas as pd
+import sys
 
-from src.backtest import BacktestEngine
-from src.cfg import load_config
-from src.utils import configure_logging
+# Add the project root to the Python path
+sys.path.append(str(Path(__file__).parent.parent))
 
-app = typer.Typer(help="Run backtests for the short straddle strategy")
+from src.cfg.loader import load_config
+from src.backtest.engine import BacktestEngine
+from src.reporting.metrics import calculate_sharpe_ratio, calculate_max_drawdown
+from src.reporting.plots import plot_equity_curve
 
-
-def _load_underlying(path: Path) -> pd.DataFrame:
-    if path.exists():
-        df = pd.read_csv(path, parse_dates=["timestamp"])
-        df = df.set_index("timestamp")
-    else:
-        logger.warning("Underlying data missing, generating synthetic series")
-        timestamps = pd.date_range("2024-01-02 09:15", periods=360, freq="1min", tz="Asia/Kolkata")
-        prices = 18000 + np.cumsum(np.random.normal(0, 5, size=len(timestamps)))
-        df = pd.DataFrame({"open": prices, "high": prices + 5, "low": prices - 5, "close": prices}, index=timestamps)
-    return df
-
-
-def _load_option_chain(path: Path) -> pd.DataFrame:
-    if path.exists():
-        return pd.read_csv(path)
-    logger.warning("Option chain missing, synthesizing ATM chain")
-    strikes = np.arange(17000, 19001, 50)
-    records = []
-    for strike in strikes:
-        records.append({"strike": strike, "type": "CE", "last_price": max(1, 200 - abs(strike - 18000) * 0.8), "iv": 0.18})
-        records.append({"strike": strike, "type": "PE", "last_price": max(1, 200 - abs(strike - 18000) * 0.8), "iv": 0.18})
-    return pd.DataFrame(records)
-
+app = typer.Typer()
 
 @app.command()
 def run(
-    config_path: Path = typer.Argument(..., help="Path to YAML config"),
-    underlying_csv: Path = typer.Option(Path("data/underlying.csv")),
-    option_chain_csv: Path = typer.Option(Path("data/option_chain.csv")),
-) -> None:
-    configure_logging()
-    bundle = load_config(config_path)
-    underlying = _load_underlying(underlying_csv)
-    option_chain = _load_option_chain(option_chain_csv)
-    engine = BacktestEngine(bundle.config, underlying, option_chain)
-    result = engine.run()
-    typer.echo(f"PnL: {result.pnl:,.2f} | Gross: {result.gross:,.2f} | Costs: {result.costs:,.2f}")
+    config_path: Path = typer.Option("config/nifty_tuesday.yaml", help="Path to the strategy config file."),
+    data_path: Path = typer.Option("data/nifty_ticks.csv", help="Path to the historical data file.")
+):
+    """
+    Runs a backtest for the short straddle strategy.
+    """
+    typer.echo(f"Starting backtest with config: {config_path}")
 
+    config = load_config(config_path)
+    historical_data = pd.read_csv(data_path, parse_dates=["timestamp"])
+    historical_data['timestamp'] = historical_data['timestamp'].dt.tz_localize('Asia/Kolkata')
+
+    backtester = BacktestEngine(config, historical_data)
+    backtester.run()
+
+    # Generate and display reports
+    # This is a simplified reporting section; a real one would be more detailed.
+    equity_curve = pd.Series(backtester.broker.capital, name="Equity") # Simplified
+
+    typer.echo("\\n--- Backtest Results ---")
+    sharpe = calculate_sharpe_ratio(equity_curve.pct_change().dropna())
+    max_dd = calculate_max_drawdown(equity_curve)
+
+    typer.echo(f"Final Capital: ₹{backtester.broker.capital:,.2f}")
+    typer.echo(f"Sharpe Ratio: {sharpe:.2f}")
+    typer.echo(f"Max Drawdown: {max_dd:.2f}%")
+
+    # Generate plots
+    plot_equity_curve(equity_curve)
+    typer.echo("\\nEquity curve plot saved to data/equity_curve.png")
 
 if __name__ == "__main__":
     app()

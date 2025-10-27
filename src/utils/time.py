@@ -1,21 +1,15 @@
-from __future__ import annotations
-
 from datetime import datetime
-
-import pandas as pd
 import pytz
-
 
 IST = pytz.timezone("Asia/Kolkata")
 
+def get_ist_now() -> datetime:
+    """
+    Returns the current time in the IST timezone.
+    """
+    return datetime.now(IST)
 
-def now_ist() -> datetime:
-    return datetime.now(tz=IST)
-
-
-def ensure_ist_index(df: pd.DataFrame) -> pd.DataFrame:
-    if df.index.tzinfo is None:
-        df = df.tz_localize(IST)
-    else:
-        df = df.tz_convert(IST)
-    return df
+if __name__ == "__main__":
+    now_ist = get_ist_now()
+    print(f"Current IST time: {now_ist}")
+    print(f"Timezone: {now_ist.tzinfo}")
